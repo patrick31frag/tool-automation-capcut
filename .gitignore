@@ -1,0 +1,25 @@
+# AutoHotkey
+*.exe
+*.bak
+*.tmp
+*.log
+error.log
+ScaleCycle.ini
+
+# Temporary BMP files
+*_tpl_*.bmp
+*_PATCHED.ahk
+*_VA*.ahk
+*.tmp24.bmp
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Backups
+*~
+*.orig
