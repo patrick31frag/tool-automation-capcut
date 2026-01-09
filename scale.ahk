@@ -216,6 +216,37 @@ __BuildTXT() {
     __TXT["TXT_SCAN_HISTORY_NEWEST_FIRST"] := "Scan history (newest first):"
     __TXT["TXT_STATUS_READY"] := "Status: Ready."
     __TXT["TXT_TXT_01"] := "●"
+    
+    ; Tab Labels
+    __TXT["TAB_BASE_SETTINGS"] := "⚙ Cài đặt"
+    __TXT["TAB_FRAME_CONTROL"] := "🎬 Frame"
+    __TXT["TAB_KEYFRAME"] := "💎 Keyframe"
+    
+    ; Base Settings
+    __TXT["LBL_BASE_SCALE"] := "Giá trị Scale:"
+    __TXT["LBL_SCALE_CYCLE"] := "Chu kỳ Scale:"
+    __TXT["LBL_CYCLE_SPEED"] := "Tốc độ (ms):"
+    __TXT["LBL_FRAME_STEP"] := "Bước nhảy Frame:"
+    __TXT["CHK_ENABLE_LOGS"] := "Bật Logs"
+    __TXT["CHK_USE_SRT"] := "Nhảy theo SRT"
+    __TXT["BTN_SAVE_SETTINGS"] := "💾 Lưu cài đặt"
+    
+    ; Frame Control
+    __TXT["LBL_CURRENT_FRAME"] := "Frame hiện tại:"
+    __TXT["LBL_JUMP_OFFSET"] := "Nhảy (offset):"
+    __TXT["CHK_PIXEL_MODE"] := "Chế độ Pixel"
+    __TXT["CHK_PRECISE_JUMP"] := "Nhảy chính xác"
+    __TXT["BTN_JUMP_NEXT_CUT"] := "⏩ Điểm cắt tiếp"
+    __TXT["BTN_BACK_FRAMES"] := "⬅ Lùi"
+    __TXT["BTN_FORWARD_FRAMES"] := "Tiến ➡"
+    
+    ; Keyframe Management
+    __TXT["CHK_AUTO_KEYFRAME"] := "Tự động thêm Keyframe"
+    __TXT["LBL_VERTICAL_SCALE"] := "Scale dọc:"
+    __TXT["CHK_AUTO_MODE"] := "Chế độ tự động"
+    __TXT["CHK_MANUAL_MODE"] := "Chế độ thủ công"
+    __TXT["BTN_ADD_DIAMOND"] := "💎 Thêm Keyframe"
+    
     __TXT_READY := true
 }
 
@@ -891,6 +922,25 @@ global MATCH_SCORE_MIN := 0.30
 ; -------- GUI EDITOR --------
 global GUI_EDIT_MODE := false
 global GUI_ACTIVE_ROI := 0
+
+; ===== SCALE CYCLE SETTINGS =====
+global SCALE_BASE := 100              ; Giá trị scale cơ bản
+global SCALE_CYCLE := [100, 80, 120]  ; Chu kỳ scale
+global CYCLE_SPEED_MS := 250          ; Tốc độ chu kỳ (ms)
+global FRAME_STEP := 10               ; Số frame mỗi bước nhảy
+
+; ===== FRAME CONTROL =====
+global CURRENT_FRAME := 0             ; Frame hiện tại
+global TOTAL_FRAMES := 0              ; Tổng số frames
+global USE_SRT_JUMP := false          ; Nhảy theo SRT
+global USE_PIXEL_MODE := false        ; Chế độ Pixel
+global USE_PRECISE_JUMP := false      ; Nhảy chính xác
+
+; ===== KEYFRAME SETTINGS =====
+global AUTO_ADD_KEYFRAME := false     ; Tự động thêm keyframe
+global VERTICAL_SCALE := 1.0          ; Tỷ lệ scale dọc
+global KEYFRAME_AUTO_MODE := false    ; Chế độ tự động
+global KEYFRAME_MANUAL_MODE := true   ; Chế độ thủ công
 
 
 
@@ -12246,6 +12296,284 @@ SetGuiMode(mode) {
 }
 
 
+; =========================================================
+; NEW EVENT HANDLERS FOR 3-TAB GUI
+; =========================================================
+
+OnSaveSettings(*) {
+    global SCALE_BASE, SCALE_CYCLE, CYCLE_SPEED_MS, FRAME_STEP
+    global USE_SRT_JUMP, edScaleBase, edScaleCycle, edCycleSpeed, edFrameStep
+    global chkEnableLogs, chkUseSRT
+    
+    try {
+        SCALE_BASE := ToIntSafe(edScaleBase.Value, 100)
+        
+        ; Parse scale cycle array from text (e.g., "100,80,120")
+        cycleText := Trim(edScaleCycle.Value)
+        if (cycleText != "") {
+            parts := StrSplit(cycleText, ",")
+            newCycle := []
+            for _, p in parts {
+                val := ToIntSafe(Trim(p), 0)
+                if (val > 0) {
+                    newCycle.Push(val)
+                }
+            }
+            if (newCycle.Length > 0) {
+                SCALE_CYCLE := newCycle
+            }
+        }
+        
+        CYCLE_SPEED_MS := ToIntSafe(edCycleSpeed.Value, 250)
+        FRAME_STEP := ToIntSafe(edFrameStep.Value, 10)
+        USE_SRT_JUMP := chkUseSRT.Value
+        
+        SetStatus("Settings saved successfully.")
+        Log("Settings saved | base=" SCALE_BASE " cycle=" cycleText " speed=" CYCLE_SPEED_MS " step=" FRAME_STEP, "INFO", "SETTINGS")
+    } catch as e {
+        SetStatus("Error saving settings: " e.Message)
+        Log("Error saving settings: " e.Message, "ERROR", "SETTINGS")
+    }
+}
+
+OnJumpNextCut(*) {
+    global nextCutKey
+    
+    try {
+        if (nextCutKey != "") {
+            Send(nextCutKey)
+            SetStatus("Jumped to next cut.")
+            Log("Jump to next cut executed.", "INFO", "FRAME")
+        } else {
+            SetStatus("Next cut key not configured.")
+            Log("Next cut key not configured.", "WARN", "FRAME")
+        }
+    } catch as e {
+        SetStatus("Error jumping to next cut: " e.Message)
+        Log("Error jumping to next cut: " e.Message, "ERROR", "FRAME")
+    }
+}
+
+OnBackFrames(*) {
+    global FRAME_STEP, edJumpOffset
+    
+    try {
+        offset := ToIntSafe(edJumpOffset.Value, FRAME_STEP)
+        
+        ; Send Left arrow key multiple times
+        Loop offset {
+            Send("{Left}")
+            Sleep(10)
+        }
+        
+        SetStatus("Moved back " offset " frames.")
+        Log("Back " offset " frames.", "INFO", "FRAME")
+    } catch as e {
+        SetStatus("Error moving back frames: " e.Message)
+        Log("Error moving back frames: " e.Message, "ERROR", "FRAME")
+    }
+}
+
+OnForwardFrames(*) {
+    global FRAME_STEP, edJumpOffset
+    
+    try {
+        offset := ToIntSafe(edJumpOffset.Value, FRAME_STEP)
+        
+        ; Send Right arrow key multiple times
+        Loop offset {
+            Send("{Right}")
+            Sleep(10)
+        }
+        
+        SetStatus("Moved forward " offset " frames.")
+        Log("Forward " offset " frames.", "INFO", "FRAME")
+    } catch as e {
+        SetStatus("Error moving forward frames: " e.Message)
+        Log("Error moving forward frames: " e.Message, "ERROR", "FRAME")
+    }
+}
+
+OnAddDiamondKeyframe(*) {
+    global keyframeKey, AUTO_ADD_KEYFRAME
+    
+    try {
+        if (keyframeKey != "") {
+            Send(keyframeKey)
+            SetStatus("Diamond keyframe added.")
+            Log("Diamond keyframe added manually.", "INFO", "KEYFRAME")
+        } else {
+            ; Fallback to clicking the learned diamond
+            try {
+                AL_F4_RunFast(true)
+            } catch {
+                SetStatus("Keyframe key not configured and no learned diamond.")
+                Log("Keyframe key not configured and no learned diamond.", "WARN", "KEYFRAME")
+            }
+        }
+    } catch as e {
+        SetStatus("Error adding diamond keyframe: " e.Message)
+        Log("Error adding diamond keyframe: " e.Message, "ERROR", "KEYFRAME")
+    }
+}
+
+OnScaleCycle(*) {
+    global SCALE_CYCLE, CYCLE_SPEED_MS
+    global baseV, lowV, highV
+    
+    try {
+        if (!IsObject(SCALE_CYCLE) || SCALE_CYCLE.Length = 0) {
+            SetStatus("Scale cycle not configured.")
+            return
+        }
+        
+        ; Cycle through scale values
+        for _, scaleVal in SCALE_CYCLE {
+            Send("{Text}" scaleVal)
+            Send("{Enter}")
+            Sleep(CYCLE_SPEED_MS)
+        }
+        
+        SetStatus("Scale cycle completed.")
+        Log("Scale cycle completed | count=" SCALE_CYCLE.Length, "INFO", "SCALE")
+    } catch as e {
+        SetStatus("Error in scale cycle: " e.Message)
+        Log("Error in scale cycle: " e.Message, "ERROR", "SCALE")
+    }
+}
+
+
+; =========================================================
+; BUILD MAIN GUI WITH 3 TABS
+; =========================================================
+
+BuildMainGUI() {
+    global g, SCALE_BASE, SCALE_CYCLE, CYCLE_SPEED_MS, FRAME_STEP
+    global CURRENT_FRAME, TOTAL_FRAMES, USE_SRT_JUMP, USE_PIXEL_MODE, USE_PRECISE_JUMP
+    global AUTO_ADD_KEYFRAME, VERTICAL_SCALE, KEYFRAME_AUTO_MODE, KEYFRAME_MANUAL_MODE
+    global edScaleBase, edScaleCycle, edCycleSpeed, edFrameStep
+    global chkEnableLogs, chkUseSRT, btnSaveSettings
+    global stCurrentFrame, edJumpOffset, chkPixelMode, chkPreciseJump
+    global btnJumpNextCut, btnBackFrames, btnForwardFrames
+    global chkAutoKeyframe, edVerticalScale, chkAutoMode, chkManualMode, btnAddDiamond
+    
+    ; Create tab control with 3 tabs - position below How-to section at y=280
+    global tabMain := g.AddTab3("x12 y280 w616 h300", [T("TAB_BASE_SETTINGS"), T("TAB_FRAME_CONTROL"), T("TAB_KEYFRAME")])
+    
+    ; ================================================================================================
+    ; TAB 1: BASE SETTINGS (Cài đặt cơ bản)
+    ; ================================================================================================
+    tabMain.UseTab(1)
+    
+    tx := 28
+    ty := 320
+    
+    ; Base Scale Value
+    g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_BASE_SCALE"))
+    edScaleBase := g.AddEdit("x+10 w120 h24 Number", SCALE_BASE)
+    
+    ; Scale Cycle
+    ty += 34
+    g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_SCALE_CYCLE"))
+    cycleTxt := ""
+    try {
+        if (IsObject(SCALE_CYCLE) && SCALE_CYCLE.Length > 0) {
+            cycleTxt := SCALE_CYCLE[1]
+            Loop SCALE_CYCLE.Length - 1 {
+                cycleTxt .= "," SCALE_CYCLE[A_Index + 1]
+            }
+        }
+    } catch {
+        cycleTxt := "100,80,120"
+    }
+    edScaleCycle := g.AddEdit("x+10 w300 h24", cycleTxt)
+    
+    ; Cycle Speed
+    ty += 34
+    g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_CYCLE_SPEED"))
+    edCycleSpeed := g.AddEdit("x+10 w120 h24 Number", CYCLE_SPEED_MS)
+    
+    ; Frame Step Size
+    ty += 34
+    g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_FRAME_STEP"))
+    edFrameStep := g.AddEdit("x+10 w120 h24 Number", FRAME_STEP)
+    
+    ; Checkboxes
+    ty += 40
+    chkEnableLogs := g.AddCheckBox("x" tx " y" ty " w180 h22", T("CHK_ENABLE_LOGS"))
+    chkUseSRT := g.AddCheckBox("x+20 w220 h22 " (USE_SRT_JUMP ? "Checked" : ""), T("CHK_USE_SRT"))
+    
+    ; Save Settings Button
+    ty += 34
+    btnSaveSettings := g.AddButton("x" tx " y" ty " w200 h32", T("BTN_SAVE_SETTINGS"))
+    btnSaveSettings.OnEvent("Click", OnSaveSettings)
+    
+    ; ================================================================================================
+    ; TAB 2: FRAME CONTROL (Điều khiển Frame)
+    ; ================================================================================================
+    tabMain.UseTab(2)
+    
+    tx := 28
+    ty := 320
+    
+    ; Current Frame Position
+    g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_CURRENT_FRAME"))
+    stCurrentFrame := g.AddText("x+10 w200 h20 +0x200", "<" CURRENT_FRAME "/" TOTAL_FRAMES ">")
+    
+    ; Jump to Frame (Custom Offset)
+    ty += 34
+    g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_JUMP_OFFSET"))
+    edJumpOffset := g.AddEdit("x+10 w120 h24 Number", FRAME_STEP)
+    g.AddText("x+10 w80 h20 +0x200", "frames")
+    
+    ; Checkboxes
+    ty += 40
+    chkPixelMode := g.AddCheckBox("x" tx " y" ty " w180 h22 " (USE_PIXEL_MODE ? "Checked" : ""), T("CHK_PIXEL_MODE"))
+    chkPreciseJump := g.AddCheckBox("x+20 w220 h22 " (USE_PRECISE_JUMP ? "Checked" : ""), T("CHK_PRECISE_JUMP"))
+    
+    ; Buttons
+    ty += 40
+    btnJumpNextCut := g.AddButton("x" tx " y" ty " w180 h32", T("BTN_JUMP_NEXT_CUT"))
+    btnJumpNextCut.OnEvent("Click", OnJumpNextCut)
+    
+    ty += 40
+    btnBackFrames := g.AddButton("x" tx " y" ty " w140 h32", T("BTN_BACK_FRAMES"))
+    btnBackFrames.OnEvent("Click", OnBackFrames)
+    
+    btnForwardFrames := g.AddButton("x+20 w140 h32", T("BTN_FORWARD_FRAMES"))
+    btnForwardFrames.OnEvent("Click", OnForwardFrames)
+    
+    ; ================================================================================================
+    ; TAB 3: KEYFRAME MANAGEMENT (Quản lý Keyframe)
+    ; ================================================================================================
+    tabMain.UseTab(3)
+    
+    tx := 28
+    ty := 320
+    
+    ; Auto Add Diamond Key
+    chkAutoKeyframe := g.AddCheckBox("x" tx " y" ty " w300 h22 " (AUTO_ADD_KEYFRAME ? "Checked" : ""), T("CHK_AUTO_KEYFRAME"))
+    
+    ; Base Vertical Scale
+    ty += 40
+    g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_VERTICAL_SCALE"))
+    edVerticalScale := g.AddEdit("x+10 w120 h24", VERTICAL_SCALE)
+    
+    ; Mode checkboxes
+    ty += 40
+    chkAutoMode := g.AddCheckBox("x" tx " y" ty " w180 h22 " (KEYFRAME_AUTO_MODE ? "Checked" : ""), T("CHK_AUTO_MODE"))
+    chkManualMode := g.AddCheckBox("x+20 w220 h22 " (KEYFRAME_MANUAL_MODE ? "Checked" : ""), T("CHK_MANUAL_MODE"))
+    
+    ; Add Diamond Keyframe Button
+    ty += 40
+    btnAddDiamond := g.AddButton("x" tx " y" ty " w200 h32", T("BTN_ADD_DIAMOND"))
+    btnAddDiamond.OnEvent("Click", OnAddDiamondKeyframe)
+    
+    ; Done with tabs
+    tabMain.UseTab(0)
+}
+
+
 Init() {
     ; ---------- Performance ----------
     SetKeyDelay(-1, -1)
@@ -12509,6 +12837,17 @@ global chkAutoHide := g.AddCheckBox("x" (mx+340) " y" (my+34) " w220 h22 Checked
         . "  4) Press F1 again (or ESC) to stop.")
 
     ; ================================================================================================
+    ; NEW 3-TAB GUI (Base Settings, Frame Control, Keyframe Management)
+    ; ================================================================================================
+    
+    ; Call BuildMainGUI to add 3-tab interface
+    try {
+        BuildMainGUI()
+    } catch as e {
+        Log("Error building main GUI: " e.Message, "ERROR", "GUI")
+    }
+
+    ; ================================================================================================
     ; ADVANCED PANEL (hidden by default)
     ; ================================================================================================
 
@@ -12617,9 +12956,11 @@ global chkAutoHide := g.AddCheckBox("x" (mx+340) " y" (my+34) " w220 h22 Checked
     ; ACTION BAR (always visible)
     ; ================================================================================================
 
-    global gbActions := g.AddGroupBox("x12 y" (UI_H_SIMPLE-86) " w616 h76", T("GRP_ACTIONS"))
+    ; Position action bar below new 3-tab GUI (at y=590)
+    actionBarY := 590
+    global gbActions := g.AddGroupBox("x12 y" actionBarY " w616 h76", T("GRP_ACTIONS"))
     bx := 28
-    by := UI_H_SIMPLE-58
+    by := actionBarY + 28
     global btnRunMain := g.AddButton("x" bx " y" by " w130 h34", T("BTN_START_F1"))
     global btnStopMain := g.AddButton("x+10 w130 h34", T("BTN_STOP"))
     global btnResetMain := g.AddButton("x+10 w130 h34 Hidden", T("BTN_RESET_UI"))
@@ -12634,12 +12975,21 @@ global chkAutoHide := g.AddCheckBox("x" (mx+340) " y" (my+34) " w220 h22 Checked
     global stStateText := g.AddText("x+6 y" by+2 " w140 h28 +0x200", T("TXT_READY"))
     g.SetFont("s9 norm", "Segoe UI")
 
-    global stStatus := g.AddText("x12 y" (UI_H_SIMPLE-26) " w616 h20 +0x200", T("TXT_STATUS_READY"))
+    global stStatus := g.AddText("x12 y" (actionBarY + 50) " w616 h20 +0x200", T("TXT_STATUS_READY"))
 
     ; Module registry (for enable/disable gating)
     global UI_MODULES := Map()
     UI_MODULES["Main"] := [edLow, edHigh, btnLearn, chkAutoHide, btnAdvanced, btnSave]
     UI_MODULES["Advanced"] := [gbAdv, tabAdv, stRoiLblParent, btnParentSet, btnParentShow, stRoiLblF3, cbF3Order, cbF3Rois, cbF3RoiMode, btnF3Preview, btnF3Run, btnF3Borders, stF3RoiCount, stRoiLblHistory, cbParentHist, stParentHistCount, stAnchLblDia, cbDia, cbDiaMode, chkDiaScan, btnDiaAdd, btnDiaUpd, btnDiaDel, stAnchLblSca, cbSca, cbScaMode, chkScaScan, btnScaAdd, btnScaUpd, btnScaDel, stHistLblScan, cbScan, stHistHint, stHelp1]
+    
+    ; Add new 3-tab GUI controls to module registry
+    try {
+        if (IsObject(tabMain)) {
+            UI_MODULES["NewTabs"] := [tabMain, edScaleBase, edScaleCycle, edCycleSpeed, edFrameStep, chkEnableLogs, chkUseSRT, btnSaveSettings, stCurrentFrame, edJumpOffset, chkPixelMode, chkPreciseJump, btnJumpNextCut, btnBackFrames, btnForwardFrames, chkAutoKeyframe, edVerticalScale, chkAutoMode, chkManualMode, btnAddDiamond]
+        }
+    } catch {
+        ; If new controls not created yet, skip
+    }
 
     ; Populate UI data
     RefreshDiaCombo()
@@ -12655,8 +13005,10 @@ global chkAutoHide := g.AddCheckBox("x" (mx+340) " y" (my+34) " w220 h22 Checked
     UI_UpdateStateBadge()
     UI_ApplyEnablePolicy(true)
 
+    ; Adjust window height to accommodate new 3-tab GUI (280+300=580 + action bar 86 = 666)
+    guiHeight := 666
     ; Show (no-activate)
-    g.Show("w" UI_W_SIMPLE " h" UI_H_SIMPLE " NA")
+    g.Show("w" UI_W_SIMPLE " h" guiHeight " NA")
 
     ; Hide advanced by default
     UI_SetAdvancedVisible(false)
