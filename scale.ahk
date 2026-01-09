@@ -12457,8 +12457,8 @@ BuildMainGUI() {
     global btnJumpNextCut, btnBackFrames, btnForwardFrames
     global chkAutoKeyframe, edVerticalScale, chkAutoMode, chkManualMode, btnAddDiamond
     
-    ; Create tab control with 3 tabs
-    global tabMain := g.AddTab3("x12 y70 w616 h280", [T("TAB_BASE_SETTINGS"), T("TAB_FRAME_CONTROL"), T("TAB_KEYFRAME")])
+    ; Create tab control with 3 tabs - position below How-to section at y=280
+    global tabMain := g.AddTab3("x12 y280 w616 h300", [T("TAB_BASE_SETTINGS"), T("TAB_FRAME_CONTROL"), T("TAB_KEYFRAME")])
     
     ; ================================================================================================
     ; TAB 1: BASE SETTINGS (Cài đặt cơ bản)
@@ -12466,7 +12466,7 @@ BuildMainGUI() {
     tabMain.UseTab(1)
     
     tx := 28
-    ty := 110
+    ty := 320
     
     ; Base Scale Value
     g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_BASE_SCALE"))
@@ -12514,7 +12514,7 @@ BuildMainGUI() {
     tabMain.UseTab(2)
     
     tx := 28
-    ty := 110
+    ty := 320
     
     ; Current Frame Position
     g.AddText("x" tx " y" ty " w140 h20 +0x200", T("LBL_CURRENT_FRAME"))
@@ -12549,7 +12549,7 @@ BuildMainGUI() {
     tabMain.UseTab(3)
     
     tx := 28
-    ty := 110
+    ty := 320
     
     ; Auto Add Diamond Key
     chkAutoKeyframe := g.AddCheckBox("x" tx " y" ty " w300 h22 " (AUTO_ADD_KEYFRAME ? "Checked" : ""), T("CHK_AUTO_KEYFRAME"))
@@ -12956,9 +12956,11 @@ global chkAutoHide := g.AddCheckBox("x" (mx+340) " y" (my+34) " w220 h22 Checked
     ; ACTION BAR (always visible)
     ; ================================================================================================
 
-    global gbActions := g.AddGroupBox("x12 y" (UI_H_SIMPLE-86) " w616 h76", T("GRP_ACTIONS"))
+    ; Position action bar below new 3-tab GUI (at y=590)
+    actionBarY := 590
+    global gbActions := g.AddGroupBox("x12 y" actionBarY " w616 h76", T("GRP_ACTIONS"))
     bx := 28
-    by := UI_H_SIMPLE-58
+    by := actionBarY + 28
     global btnRunMain := g.AddButton("x" bx " y" by " w130 h34", T("BTN_START_F1"))
     global btnStopMain := g.AddButton("x+10 w130 h34", T("BTN_STOP"))
     global btnResetMain := g.AddButton("x+10 w130 h34 Hidden", T("BTN_RESET_UI"))
@@ -12973,12 +12975,21 @@ global chkAutoHide := g.AddCheckBox("x" (mx+340) " y" (my+34) " w220 h22 Checked
     global stStateText := g.AddText("x+6 y" by+2 " w140 h28 +0x200", T("TXT_READY"))
     g.SetFont("s9 norm", "Segoe UI")
 
-    global stStatus := g.AddText("x12 y" (UI_H_SIMPLE-26) " w616 h20 +0x200", T("TXT_STATUS_READY"))
+    global stStatus := g.AddText("x12 y" (actionBarY + 50) " w616 h20 +0x200", T("TXT_STATUS_READY"))
 
     ; Module registry (for enable/disable gating)
     global UI_MODULES := Map()
     UI_MODULES["Main"] := [edLow, edHigh, btnLearn, chkAutoHide, btnAdvanced, btnSave]
     UI_MODULES["Advanced"] := [gbAdv, tabAdv, stRoiLblParent, btnParentSet, btnParentShow, stRoiLblF3, cbF3Order, cbF3Rois, cbF3RoiMode, btnF3Preview, btnF3Run, btnF3Borders, stF3RoiCount, stRoiLblHistory, cbParentHist, stParentHistCount, stAnchLblDia, cbDia, cbDiaMode, chkDiaScan, btnDiaAdd, btnDiaUpd, btnDiaDel, stAnchLblSca, cbSca, cbScaMode, chkScaScan, btnScaAdd, btnScaUpd, btnScaDel, stHistLblScan, cbScan, stHistHint, stHelp1]
+    
+    ; Add new 3-tab GUI controls to module registry
+    try {
+        if (IsObject(tabMain)) {
+            UI_MODULES["NewTabs"] := [tabMain, edScaleBase, edScaleCycle, edCycleSpeed, edFrameStep, chkEnableLogs, chkUseSRT, btnSaveSettings, stCurrentFrame, edJumpOffset, chkPixelMode, chkPreciseJump, btnJumpNextCut, btnBackFrames, btnForwardFrames, chkAutoKeyframe, edVerticalScale, chkAutoMode, chkManualMode, btnAddDiamond]
+        }
+    } catch {
+        ; If new controls not created yet, skip
+    }
 
     ; Populate UI data
     RefreshDiaCombo()
@@ -12994,8 +13005,10 @@ global chkAutoHide := g.AddCheckBox("x" (mx+340) " y" (my+34) " w220 h22 Checked
     UI_UpdateStateBadge()
     UI_ApplyEnablePolicy(true)
 
+    ; Adjust window height to accommodate new 3-tab GUI (280+300=580 + action bar 86 = 666)
+    guiHeight := 666
     ; Show (no-activate)
-    g.Show("w" UI_W_SIMPLE " h" UI_H_SIMPLE " NA")
+    g.Show("w" UI_W_SIMPLE " h" guiHeight " NA")
 
     ; Hide advanced by default
     UI_SetAdvancedVisible(false)
